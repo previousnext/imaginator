@@ -12,26 +12,28 @@ import (
 )
 
 var (
-	cliSource = kingpin.Arg("source", "Verbose mode.").String()
-	cliTarget = kingpin.Arg("target", "Verbose mode.").String()
+	cliUser = kingpin.Flag("user", "Verbose mode.").String()
+	cliPass = kingpin.Flag("pass", "Verbose mode.").String()
+	cliSource = kingpin.Arg("source", "Verbose mode.").Required().String()
+	cliTarget = kingpin.Arg("target", "Verbose mode.").Required().String()
 )
 
 func main() {
 	kingpin.Parse()
 
-	err := run(*cliSource, *cliTarget)
+	err := run(*cliSource, *cliUser, *cliPass, *cliTarget)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func run(source, target string) error {
+func run(source, user, pass, target string) error {
 	s, err := url.Parse(source)
 	if err != nil {
 		return err
 	}
 
-	images, err := scrape.Images(s)
+	images, err := scrape.Images(s, user, pass)
 	if err != nil {
 		return err
 	}
@@ -43,7 +45,7 @@ func run(source, target string) error {
 		g.Go(func() error {
 			target := fmt.Sprintf("%s%s", target, image.Path)
 			fmt.Println("Downloading:", target)
-			return fileutils.Download(image.String(), target)
+			return fileutils.Download(image.String(), user, pass, target)
 		})
 	}
 	// Wait for all HTTP fetches to complete.

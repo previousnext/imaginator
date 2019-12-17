@@ -1,6 +1,7 @@
 package scrape
 
 import (
+	"encoding/base64"
 	"log"
 	"fmt"
 	"net/url"
@@ -10,12 +11,16 @@ import (
 )
 
 // Images extracted from a path.
-func Images(source *url.URL) ([]*url.URL, error) {
+func Images(source *url.URL, user, pass string) ([]*url.URL, error) {
 	var images []*url.URL
 
 	c := colly.NewCollector(
 		colly.AllowedDomains(source.Host),
 	)
+
+	c.OnRequest(func(r *colly.Request) {
+		r.Headers.Set("Authorization", "Basic "+basicAuth(user, pass))
+	})
 
 	c.OnHTML("source[srcset]", func(e *colly.HTMLElement) {
 		srcset := e.Attr("srcset")
@@ -90,4 +95,9 @@ func getOriginalFromStyle(link *url.URL) (*url.URL, error) {
 	}
 
 	return  original, nil
+}
+
+func basicAuth(username, password string) string {
+	auth := username + ":" + password
+	return base64.StdEncoding.EncodeToString([]byte(auth))
 }

@@ -1,15 +1,15 @@
 package fileutils
 
 import (
-"fmt"
-"os"
-"net/http"
-"io"
-"path/filepath"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 )
 
 // Download a file from a URL.
-func Download(url, path string) (err error) {
+func Download(url, user, pass, path string) error {
 	directory := filepath.Dir(path)
 
 	if _, err := os.Stat(directory); os.IsNotExist(err) {
@@ -25,7 +25,16 @@ func Download(url, path string) (err error) {
 	}
 	defer f.Close()
 
-	resp, err := http.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+
+	req.SetBasicAuth(user, pass)
+
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
