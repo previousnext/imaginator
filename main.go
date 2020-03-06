@@ -45,7 +45,13 @@ func run(source, user, pass, target string) error {
 		g.Go(func() error {
 			target := fmt.Sprintf("%s%s", target, image.Path)
 			fmt.Println("Downloading:", target)
-			return fileutils.Download(image.String(), user, pass, target)
+
+			err := fileutils.Download(image.String(), user, pass, target)
+			if err != nil {
+				fmt.Printf("Failed to download: %w\n", err)
+			}
+
+			return nil
 		})
 	}
 	// Wait for all HTTP fetches to complete.
