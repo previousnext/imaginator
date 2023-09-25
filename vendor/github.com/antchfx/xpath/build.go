@@ -42,8 +42,14 @@ func axisPredicate(root *axisNode) func(NodeNavigator) bool {
 	}
 	nametest := root.LocalName != "" || root.Prefix != ""
 	predicate := func(n NodeNavigator) bool {
-		if typ == n.NodeType() || typ == allNode || typ == TextNode {
+		if typ == n.NodeType() || typ == allNode {
 			if nametest {
+				type namespaceURL interface {
+					NamespaceURL() string
+				}
+				if ns, ok := n.(namespaceURL); ok && root.hasNamespaceURI {
+					return root.LocalName == n.LocalName() && root.namespaceURI == ns.NamespaceURL()
+				}
 				if root.LocalName == n.LocalName() && root.Prefix == n.Prefix() {
 					return true
 				}
@@ -77,7 +83,21 @@ func (b *builder) processAxisNode(root *axisNode) (query, error) {
 				} else {
 					qyGrandInput = &contextQuery{}
 				}
-				qyOutput = &descendantQuery{Input: qyGrandInput, Predicate: predicate, Self: true}
+				// fix #20: https://github.com/antchfx/htmlquery/issues/20
+				filter := func(n NodeNavigator) bool {
+					v := predicate(n)
+					switch root.Prop {
+					case "text":
+						v = v && n.NodeType() == TextNode
+					case "comment":
+						v = v && n.NodeType() == CommentNode
+					}
+					return v
+				}
+				// fix `//*[contains(@id,"food")]//*[contains(@id,"food")]`, see https://github.com/antchfx/htmlquery/issues/52
+				// Skip the current node(Self:false) for the next descendants nodes.
+				_, ok := qyGrandInput.(*contextQuery)
+				qyOutput = &descendantQuery{Input: qyGrandInput, Predicate: filter, Self: ok}
 				return qyOutput, nil
 			}
 		}
@@ -182,8 +202,23 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		qyOutput = &functionQuery{Input: b.firstInput, Func: containsFunc(arg1, arg2)}
+	case "matches":
+		//matches(string , pattern)
+		if len(root.Args) != 2 {
+			return nil, errors.New("xpath: matches function must have two parameters")
+		}
+		var (
+			arg1, arg2 query
+			err        error
+		)
+		if arg1, err = b.processNode(root.Args[0]); err != nil {
+			return nil, err
+		}
+		if arg2, err = b.processNode(root.Args[1]); err != nil {
+			return nil, err
+		}
+		qyOutput = &functionQuery{Input: b.firstInput, Func: matchesFunc(arg1, arg2)}
 	case "substring":
 		//substring( string , start [, length] )
 		if len(root.Args) < 2 {
@@ -243,6 +278,25 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
 			return nil, err
 		}
 		qyOutput = &functionQuery{Input: argQuery, Func: normalizespaceFunc}
+	case "replace":
+		//replace( string , string, string )
+		if len(root.Args) != 3 {
+			return nil, errors.New("xpath: replace function must have three parameters")
+		}
+		var (
+			arg1, arg2, arg3 query
+			err              error
+		)
+		if arg1, err = b.processNode(root.Args[0]); err != nil {
+			return nil, err
+		}
+		if arg2, err = b.processNode(root.Args[1]); err != nil {
+			return nil, err
+		}
+		if arg3, err = b.processNode(root.Args[2]); err != nil {
+			return nil, err
+		}
+		qyOutput = &functionQuery{Input: b.firstInput, Func: replaceFunc(arg1, arg2, arg3)}
 	case "translate":
 		//translate( string , string, string )
 		if len(root.Args) != 3 {
@@ -272,27 +326,27 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
 		}
 		qyOutput = &functionQuery{Input: argQuery, Func: notFunc}
 	case "name", "local-name", "namespace-uri":
-		inp := b.firstInput
 		if len(root.Args) > 1 {
 			return nil, fmt.Errorf("xpath: %s function must have at most one parameter", root.FuncName)
 		}
+		var (
+			arg query
+			err error
+		)
 		if len(root.Args) == 1 {
-			argQuery, err := b.processNode(root.Args[0])
+			arg, err = b.processNode(root.Args[0])
 			if err != nil {
 				return nil, err
 			}
-			inp = argQuery
 		}
-		f := &functionQuery{Input: inp}
 		switch root.FuncName {
 		case "name":
-			f.Func = nameFunc
+			qyOutput = &functionQuery{Input: b.firstInput, Func: nameFunc(arg)}
 		case "local-name":
-			f.Func = localNameFunc
+			qyOutput = &functionQuery{Input: b.firstInput, Func: localNameFunc(arg)}
 		case "namespace-uri":
-			f.Func = namespaceFunc
+			qyOutput = &functionQuery{Input: b.firstInput, Func: namespaceFunc(arg)}
 		}
-		qyOutput = f
 	case "true", "false":
 		val := root.FuncName == "true"
 		qyOutput = &functionQuery{
@@ -302,7 +356,15 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
 			},
 		}
 	case "last":
-		qyOutput = &functionQuery{Input: b.firstInput, Func: lastFunc}
+		switch typ := b.firstInput.(type) {
+		case *groupQuery, *filterQuery:
+			// https://github.com/antchfx/xpath/issues/76
+			// https://github.com/antchfx/xpath/issues/78
+			qyOutput = &lastQuery{Input: typ}
+		default:
+			qyOutput = &functionQuery{Input: b.firstInput, Func: lastFunc}
+		}
+
 	case "position":
 		qyOutput = &functionQuery{Input: b.firstInput, Func: positionFunc}
 	case "boolean", "number", "string":
@@ -379,6 +441,15 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
 			args = append(args, q)
 		}
 		qyOutput = &functionQuery{Input: b.firstInput, Func: concatFunc(args...)}
+	case "reverse":
+		if len(root.Args) == 0 {
+			return nil, fmt.Errorf("xpath: reverse(node-sets) function must with have parameters node-sets")
+		}
+		argQuery, err := b.processNode(root.Args[0])
+		if err != nil {
+			return nil, err
+		}
+		qyOutput = &transformFunctionQuery{Input: argQuery, Func: reverseFunc}
 	default:
 		return nil, fmt.Errorf("not yet support this function %s()", root.FuncName)
 	}
@@ -396,13 +467,15 @@ func (b *builder) processOperatorNode(root *operatorNode) (query, error) {
 	}
 	var qyOutput query
 	switch root.Op {
-	case "+", "-", "div", "mod": // Numeric operator
+	case "+", "-", "*", "div", "mod": // Numeric operator
 		var exprFunc func(interface{}, interface{}) interface{}
 		switch root.Op {
 		case "+":
 			exprFunc = plusFunc
 		case "-":
 			exprFunc = minusFunc
+		case "*":
+			exprFunc = mulFunc
 		case "div":
 			exprFunc = divFunc
 		case "mod":
@@ -455,16 +528,24 @@ func (b *builder) processNode(root node) (q query, err error) {
 		b.firstInput = q
 	case nodeFilter:
 		q, err = b.processFilterNode(root.(*filterNode))
+		b.firstInput = q
 	case nodeFunction:
 		q, err = b.processFunctionNode(root.(*functionNode))
 	case nodeOperator:
 		q, err = b.processOperatorNode(root.(*operatorNode))
+	case nodeGroup:
+		q, err = b.processNode(root.(*groupNode).Input)
+		if err != nil {
+			return
+		}
+		q = &groupQuery{Input: q}
+		b.firstInput = q
 	}
 	return
 }
 
 // build builds a specified XPath expressions expr.
-func build(expr string) (q query, err error) {
+func build(expr string, namespaces map[string]string) (q query, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
@@ -477,7 +558,7 @@ func build(expr string) (q query, err error) {
 			}
 		}
 	}()
-	root := parse(expr)
+	root := parse(expr, namespaces)
 	b := &builder{}
 	return b.processNode(root)
 }

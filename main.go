@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "github.com/alecthomas/kingpin/v2"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/previousnext/imaginator/internal/fileutils"
@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	cliUser = kingpin.Flag("user", "Verbose mode.").String()
-	cliPass = kingpin.Flag("pass", "Verbose mode.").String()
+	cliUser   = kingpin.Flag("user", "Verbose mode.").String()
+	cliPass   = kingpin.Flag("pass", "Verbose mode.").String()
 	cliSource = kingpin.Arg("source", "Verbose mode.").Required().String()
 	cliTarget = kingpin.Arg("target", "Verbose mode.").Required().String()
 )

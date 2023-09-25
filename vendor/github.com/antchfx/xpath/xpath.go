@@ -2,6 +2,7 @@ package xpath
 
 import (
 	"errors"
+	"fmt"
 )
 
 // NodeType represents a type of XPath node.
@@ -140,9 +141,12 @@ func Compile(expr string) (*Expr, error) {
 	if expr == "" {
 		return nil, errors.New("expr expression is nil")
 	}
-	qy, err := build(expr)
+	qy, err := build(expr, nil)
 	if err != nil {
 		return nil, err
+	}
+	if qy == nil {
+		return nil, fmt.Errorf(fmt.Sprintf("undeclared variable in XPath expression: %s", expr))
 	}
 	return &Expr{s: expr, q: qy}, nil
 }
@@ -151,7 +155,22 @@ func Compile(expr string) (*Expr, error) {
 func MustCompile(expr string) *Expr {
 	exp, err := Compile(expr)
 	if err != nil {
-		return nil
+		return &Expr{s: expr, q: nopQuery{}}
 	}
 	return exp
+}
+
+// CompileWithNS compiles an XPath expression string, using given namespaces map.
+func CompileWithNS(expr string, namespaces map[string]string) (*Expr, error) {
+	if expr == "" {
+		return nil, errors.New("expr expression is nil")
+	}
+	qy, err := build(expr, namespaces)
+	if err != nil {
+		return nil, err
+	}
+	if qy == nil {
+		return nil, fmt.Errorf(fmt.Sprintf("undeclared variable in XPath expression: %s", expr))
+	}
+	return &Expr{s: expr, q: qy}, nil
 }

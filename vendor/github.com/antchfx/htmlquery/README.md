@@ -8,12 +8,26 @@ htmlquery
 Overview
 ====
 
-htmlquery is an XPath query package for HTML, lets you extract data or evaluate from HTML documents by an XPath expression.
+`htmlquery` is an XPath query package for HTML, lets you extract data or evaluate from HTML documents by an XPath expression.
+
+`htmlquery` built-in the query object caching feature based on [LRU](https://godoc.org/github.com/golang/groupcache/lru), this feature will caching the recently used XPATH query string. Enable query caching can avoid re-compile XPath expression each query. 
+
+You can visit this page to learn about the supported XPath(1.0/2.0) syntax. https://github.com/antchfx/xpath
+
+XPath query packages for Go
+===
+| Name                                              | Description                               |
+| ------------------------------------------------- | ----------------------------------------- |
+| [htmlquery](https://github.com/antchfx/htmlquery) | XPath query package for the HTML document |
+| [xmlquery](https://github.com/antchfx/xmlquery)   | XPath query package for the XML document  |
+| [jsonquery](https://github.com/antchfx/jsonquery) | XPath query package for the JSON document |
 
 Installation
 ====
 
-> $ go get github.com/antchfx/htmlquery
+```
+go get github.com/antchfx/htmlquery
+```
 
 Getting Started
 ====
@@ -33,6 +47,13 @@ if err != nil {
 doc, err := htmlquery.LoadURL("http://example.com/")
 ```
 
+#### Load HTML from document.
+
+```go
+filePath := "/home/user/sample.html"
+doc, err := htmlquery.LoadDoc(filePath)
+```
+
 #### Load HTML document from string.
 
 ```go
@@ -49,19 +70,29 @@ list := htmlquery.Find(doc, "//a")
 #### Find all A elements that have `href` attribute.
 
 ```go
-list := range htmlquery.Find(doc, "//a[@href]")	
+list := htmlquery.Find(doc, "//a[@href]")	
 ```
 
-#### Find all A elements and only get `href` attribute self.
+#### Find all A elements with `href` attribute and only return `href` value.
 
 ```go
-list := range htmlquery.Find(doc, "//a/@href")	
+list := htmlquery.Find(doc, "//a/@href")	
+for _ , n := range list{
+	fmt.Println(htmlquery.SelectAttr(n, "href")) // output @href value
+}
 ```
 
 ### Find the third A element.
 
 ```go
 a := htmlquery.FindOne(doc, "//a[3]")
+```
+
+### Find children element (img) under A `href` and print the source
+```go
+a := htmlquery.FindOne(doc, "//a")
+img := htmlquery.FindOne(a, "//img")
+fmt.Prinln(htmlquery.SelectAttr(img, "src")) // output @src value
 ```
 
 #### Evaluate the number of all IMG element.
@@ -72,20 +103,8 @@ v := expr.Evaluate(htmlquery.CreateXPathNavigator(doc)).(float64)
 fmt.Printf("total count is %f", v)
 ```
 
-Changelogs
-===
 
-2019-10-05 
-- Add new methods that compatible with invalid XPath expression error: `QueryAll` and `Query`.
-- Add `QuerySelector` and `QuerySelectorAll` methods, supported reused your query object.
-
-2019-02-04
-- [#7](https://github.com/antchfx/htmlquery/issues/7) Removed deprecated `FindEach()` and `FindEachWithBreak()` methods.
-
-2018-12-28
-- Avoid adding duplicate elements to list for `Find()` method. [#6](https://github.com/antchfx/htmlquery/issues/6)
-
-Tutorial
+Quick Starts
 ===
 
 ```go
@@ -101,10 +120,13 @@ func main() {
 	}
 	for i, n := range list {
 		a := htmlquery.FindOne(n, "//a")
-		fmt.Printf("%d %s(%s)\n", i, htmlquery.InnerText(a), htmlquery.SelectAttr(a, "href"))
+		if a != nil {
+		    fmt.Printf("%d %s(%s)\n", i, htmlquery.InnerText(a), htmlquery.SelectAttr(a, "href"))
+		}
 	}
 }
 ```
+
 
 FAQ
 ====
@@ -120,13 +142,21 @@ Yes, you can. We offer the `QuerySelector` and `QuerySelectorAll` methods, It wi
 
 Cache a query expression object(or reused) will avoid re-compile XPath query expression, improve your query performance.
 
-List of supported XPath query packages
-===
-|Name |Description |
-|--------------------------|----------------|
-|[htmlquery](https://github.com/antchfx/htmlquery) | XPath query package for the HTML document|
-|[xmlquery](https://github.com/antchfx/xmlquery) | XPath query package for the XML document|
-|[jsonquery](https://github.com/antchfx/jsonquery) | XPath query package for the JSON document|
+#### XPath query object cache performance
+
+```
+goos: windows
+goarch: amd64
+pkg: github.com/antchfx/htmlquery
+BenchmarkSelectorCache-4                20000000                55.2 ns/op
+BenchmarkDisableSelectorCache-4           500000              3162 ns/op
+```
+
+#### How to disable caching?
+
+```
+htmlquery.DisableSelectorCache = true
+```
 
 Questions
 ===
