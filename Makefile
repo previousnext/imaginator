@@ -2,15 +2,16 @@
 
 export CGO_ENABLED=0
 
-PROJECT=github.com/previousnext/imaginator
+define build_step
+	GOOS=$(1) GOARCH=$(2) go build -o bin/imaginator-$(1)-$(2) -ldflags='-extldflags "-static"' github.com/previousnext/imaginator
+endef
 
 # Builds the project.
 build:
-	gox -os='linux darwin' \
-	    -arch='amd64' \
-	    -output='bin/imaginator_{{.OS}}_{{.Arch}}' \
-	    -ldflags='-extldflags "-static"' \
-	    $(PROJECT)
+	$(call build_step,linux,amd64)
+	$(call build_step,linux,arm64)
+	$(call build_step,darwin,amd64)
+	$(call build_step,darwin,arm64)
 
 # Run all lint checking with exit codes for CI.
 lint:

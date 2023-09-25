@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/url"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -48,7 +49,7 @@ func run(source, user, pass, target string) error {
 
 			err := fileutils.Download(image.String(), user, pass, target)
 			if err != nil {
-				fmt.Errorf("Failed to download: %w\n", err)
+				log.Println("Failed to download: %w\n", err)
 			}
 
 			return nil
