@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/url"
 
-	kingpin "github.com/alecthomas/kingpin/v2"
+	"github.com/alecthomas/kingpin/v2"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/previousnext/imaginator/internal/fileutils"
@@ -48,7 +48,7 @@ func run(source, user, pass, target string) error {
 
 			err := fileutils.Download(image.String(), user, pass, target)
 			if err != nil {
-				fmt.Printf("Failed to download: %w\n", err)
+				fmt.Errorf("Failed to download: %w\n", err)
 			}
 
 			return nil

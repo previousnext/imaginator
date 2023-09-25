@@ -2,8 +2,8 @@ package scrape
 
 import (
 	"encoding/base64"
-	"log"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 
@@ -52,9 +52,9 @@ func Images(source *url.URL, user, pass string) ([]*url.URL, error) {
 	var originals []*url.URL
 
 	for _, image := range images {
-		original, err := getOriginalFromStyle(image)
-		if err != nil {
-			log.Println(err)
+		original, ok := getOriginalFromStyle(image)
+		if !ok {
+			continue
 		}
 
 		originals = append(originals, original)
@@ -84,17 +84,27 @@ func splitSrcSet(source *url.URL, set string) ([]*url.URL, error) {
 	return images, nil
 }
 
-func getOriginalFromStyle(link *url.URL) (*url.URL, error) {
+// Helper function to get the original image from a style.
+func getOriginalFromStyle(link *url.URL) (*url.URL, bool) {
+	if !strings.Contains(link.Path, "styles") {
+		return nil, false
+	}
+
 	split := strings.Split(link.Path, "/")
+
+	if len(split) < 7 {
+		return nil, false
+	}
+
 	newPath := append(split[:4], split[7:]...)
 
 	original := &url.URL{
 		Scheme: link.Scheme,
-		Host: link.Host,
-		Path: strings.Join(newPath, "/"),
+		Host:   link.Host,
+		Path:   strings.Join(newPath, "/"),
 	}
 
-	return  original, nil
+	return original, true
 }
 
 func basicAuth(username, password string) string {
