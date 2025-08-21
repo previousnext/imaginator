@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gocolly/colly"
+	colly "github.com/gocolly/colly/v2"
 )
 
 // Images extracted from a path.
@@ -16,6 +16,7 @@ func Images(source *url.URL, user, pass string) ([]*url.URL, error) {
 
 	c := colly.NewCollector(
 		colly.AllowedDomains(source.Host),
+		colly.UserAgent("Imaginator Scraper"),
 	)
 
 	c.OnRequest(func(r *colly.Request) {
