@@ -31,12 +31,12 @@ func main() {
 func run(source, user, pass, target string) error {
 	s, err := url.Parse(source)
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid source URL: %w", err)
 	}
 
 	images, err := scrape.Images(s, user, pass)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to scrape images: %w", err)
 	}
 
 	var g errgroup.Group
@@ -55,6 +55,7 @@ func run(source, user, pass, target string) error {
 			return nil
 		})
 	}
+
 	// Wait for all HTTP fetches to complete.
 	return g.Wait()
 }
